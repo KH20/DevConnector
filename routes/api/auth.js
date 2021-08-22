@@ -3,6 +3,11 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../../middleware/auth");
 const User = require("../../models/User");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const config = require("config");
+const { check, validationResult } = require("express-validator");
+
 
 //@router   GET api/auth
 //@desc     Test Route
@@ -17,4 +22,74 @@ router.get("/", auth, async (req, res) => {
     }
 });
 
+
+//@router   POST api/auth
+//@desc     Authenticate User & Get Token
+//@access   Public
+
+router.post("/", [
+    check("email", "Please include a valid email")
+        .isEmail(),
+    check("password", "Password is required")
+        .exists()
+], async (req, res) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        return res
+            .status(400)
+            .json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+
+    try {
+        //See if user exists
+        let user = await User.findOne({ email })
+
+        if (!user) {
+            //Error. User exists. Cannot register with this email.
+            return res
+                .status(400)
+                .json({ errors: [{ msg: "Invalid Credentials" }] });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res
+                .status(400)
+                .json({ errors: [{ msg: "Invalid Credentials" }] });
+        }
+
+        //Set Payload
+        const payload = {
+            user: {
+                id: user.id
+            }
+        }
+
+        //Return jsonwebtoken
+        const token = jwt.sign(
+            payload,
+            config
+                .get("jwtSecret"),
+            { expiresIn: 360000 },
+            (err, token) => {
+                if (err) throw err;
+                return res.json({ token });
+            }
+        );
+
+    } catch (err) {
+        console.error(err.message);
+        return res
+            .status(500)
+            .send("Server Error");
+    }
+});
+
 module.exports = router;
+
+
+
