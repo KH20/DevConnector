@@ -1,1 +1,0 @@
-Based on the MERN Stack Front To Back: Full Stack React, Redux & Node.js course by Brad Traversy
